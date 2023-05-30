@@ -3,35 +3,59 @@
 using namespace std::literals;
 namespace transportcatalogue {
 
-	void TransportCatalogue::AddStops(std::unordered_map<std::tuple<std::string, double, double>, std::unordered_map<std::string, uint32_t>, transportcatalogue::StopsMakerHasher>& stops) {
-		std::unordered_map<std::string_view, std::unordered_map<std::string, uint32_t>> bufer;
-		for (auto& [stop, stops_to] : stops) {
-			const auto& [name, lat, lng] = stop;
-			stops_.push_back(Stop(name, lat, lng));
+	void TransportCatalogue::AddStops(const std::string& stop, const Coordinates& coordinates) {				
+			stops_.push_back({stop, coordinates});
 			book_of_stops_.insert({ stops_[stops_.size() - 1].name, &stops_[stops_.size() - 1] });
-			stop_buses_.insert({ book_of_stops_[name]->name, {} });
-			if (!stops_to.empty()) {
-				bufer.insert({ book_of_stops_[name]->name , std::move(stops_to) });
-			}
-		}
-		AddStopsDistance(bufer);
+			stop_buses_.insert({ book_of_stops_[stop]->name, {} });						
 	}
 
-	void TransportCatalogue::AddRoutes(std::unordered_map<std::string, std::vector<std::string>>& routes) {
-		for (auto& [name, route] : routes) {
+	void TransportCatalogue::AddStopsDistance(const std::string& name, const std::unordered_map<std::string, uint32_t>& stops_distance) {
+		for (auto& [stop_to, dist] : stops_distance) {
+				stops_distance_[{book_of_stops_.at(name), book_of_stops_.at(stop_to)}] = dist;
+				if (stops_distance_.find({ book_of_stops_.at(stop_to), book_of_stops_.at(name) }) == stops_distance_.end()) {
+					stops_distance_[{book_of_stops_.at(stop_to), book_of_stops_.at(name)}] = dist;
+				}
+			}
+	}
+
+	void TransportCatalogue::AddRoutes(const std::string& bus, const std::vector<std::string>& stops) {		
 			std::vector<Stop*> route_buf;
-			for (auto& stop : route) {
+			for (auto& stop : stops) {
 				route_buf.push_back(book_of_stops_[stop]);
 			}
-			routes_.push_back({ name, std::move(route_buf) });
+			routes_.push_back({ bus, std::move(route_buf) });
 			book_of_routes_.insert({ routes_[routes_.size() - 1].name, &routes_[routes_.size() - 1] });
-			for (auto& stop : route) {
-				stop_buses_[book_of_stops_[stop]->name].insert(book_of_routes_[name]->name);
+			for (auto& stop : stops) {
+				stop_buses_[book_of_stops_[stop]->name].insert(book_of_routes_[bus]->name);
 			}
-		}
 	}
 
+	RouteInfo TransportCatalogue::GetRouteInfo(std::string_view name_of_bus) const {
+		RouteInfo result;
+		result.stops_on_route = GetRouteSize(name_of_bus);
+		result.unique_stops = GetUniqueStopsCount(name_of_bus);
+		result.route_length = ComputeRouteRealDistance(name_of_bus);
+		result.curvature = ComputeCurvature(name_of_bus);
+		return result;
+	}	
 
+	const Bus* TransportCatalogue::FindBus(const std::string& bus) const {
+		if (book_of_routes_.find(bus) == book_of_routes_.end()) {
+			return nullptr;
+		}
+		return book_of_routes_.at(bus);
+	}
+
+	const Stop* TransportCatalogue::FindStop(const std::string& stop) const{
+		if (book_of_stops_.find(stop) == book_of_stops_.end()) {
+			return nullptr;
+		}
+		return book_of_stops_.at(stop);
+	}
+
+	const std::set<std::string_view>& TransportCatalogue::FindBuses(const std::string& stop) const {		
+		return stop_buses_.at(stop);
+	}
 
 	size_t TransportCatalogue::GetRouteSize(std::string_view name_of_bus) const {
 		return book_of_routes_.at(name_of_bus)->route.size();
@@ -75,24 +99,5 @@ namespace transportcatalogue {
 
 	double TransportCatalogue::ComputeCurvature(std::string_view name_of_bus) const {
 		return static_cast<double>(ComputeRouteRealDistance(name_of_bus)) / ComputeGeoDistanceOfRoute(name_of_bus);
-	}
-
-	const std::unordered_map<std::string_view, Bus*>& TransportCatalogue::GetBookOfRoutes() const {
-		return book_of_routes_;
-	}
-
-	const std::unordered_map<std::string_view, std::set<std::string_view>>& TransportCatalogue::GetStopBuses() const {
-		return stop_buses_;
-	}
-
-	void TransportCatalogue::AddStopsDistance(std::unordered_map<std::string_view, std::unordered_map<std::string, uint32_t>>& stops_distance) {
-		for (auto& [stop, stops_dist] : stops_distance) {
-			for (auto& [stop_to, dist] : stops_dist) {
-				stops_distance_[{book_of_stops_.at(stop), book_of_stops_.at(stop_to)}] = dist;
-				if (stops_distance_.find({ book_of_stops_.at(stop_to), book_of_stops_.at(stop) }) == stops_distance_.end()) {
-					stops_distance_[{book_of_stops_.at(stop_to), book_of_stops_.at(stop)}] = dist;
-				}
-			}
-		}
 	}
 }

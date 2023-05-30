@@ -6,9 +6,11 @@
 
 namespace transportcatalogue::detail {
 
-	void OutputBus(const std::string& bus, const TransportCatalogue& tran_cat);
+	std::string StringMakerToo(const std::string& simbols, const std::string& inner, const size_t& pos);
 
-	void OutputStop(const std::string& bus, const TransportCatalogue& tran_cat);
+	void OutputBus(const std::string& bus, const TransportCatalogue& tran_cat, std::ostream& out);
 
-	void OutputReqFunction(const TransportCatalogue& catalogue, int& counter);
+	void OutputStop(const std::string& bus, const TransportCatalogue& tran_cat, std::ostream& out);
+
+	void OutputReqFunction(const TransportCatalogue& catalogue, std::istream& in, std::ostream& out);
 }

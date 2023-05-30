@@ -1,33 +1,42 @@
 #include "stat_reader.h"
+
 using namespace std::literals;
 namespace transportcatalogue::detail {
 
-	void OutputBus(const std::string& bus, const TransportCatalogue& tran_cat) {
-		if (tran_cat.GetBookOfRoutes().find(bus) != tran_cat.GetBookOfRoutes().end()) {
+	std::string StringMakerToo(const std::string& simbols, const std::string& inner, const size_t& pos) {
+		size_t name_begin = inner.find_first_not_of(simbols, pos);
+		size_t name_end = inner.find_last_not_of(simbols, inner.npos);
+		size_t distance_of_name = name_end - name_begin + 1;
+		std::string bus_or_stop = inner.substr(name_begin, distance_of_name);
+		return bus_or_stop;
+	}
 
-			std::cout << "Bus "s << tran_cat.GetBookOfRoutes().at(bus)->name << ": "s
-				<< tran_cat.GetRouteSize(bus) << " stops on route, "s
-				<< tran_cat.GetUniqueStopsCount(bus) << " unique stops, "s
-				<< tran_cat.ComputeRouteRealDistance(bus) << " route length, "s
-				<< tran_cat.ComputeCurvature(bus) << " curvature"s << std::endl;
+	void OutputBus(const std::string& bus, const TransportCatalogue& transport_catalogue, std::ostream& out) {
+		if (transport_catalogue.FindBus(bus) != nullptr) {
+			RouteInfo route_info = transport_catalogue.GetRouteInfo(bus);
+			out << "Bus "s << transport_catalogue.FindBus(bus)->name << ": "s
+				<< route_info.stops_on_route << " stops on route, "s
+				<< route_info.unique_stops << " unique stops, "s
+				<< route_info.route_length << " route length, "s
+				<< route_info.curvature << " curvature"s << std::endl;
 		}
 		else {
-			std::cout << "Bus "s << bus << ": "s << "not found"s << std::endl;
+			out << "Bus "s << bus << ": "s << "not found"s << std::endl;
 		}
 	}
 
-	void OutputStop(const std::string& stop, const TransportCatalogue& tran_cat) {
+	void OutputStop(const std::string& stop, const TransportCatalogue& transport_catalogue, std::ostream& out) {
 
-		if (tran_cat.GetStopBuses().find(stop) != tran_cat.GetStopBuses().end()) {
-			if (tran_cat.GetStopBuses().at(stop).empty()) {
-				std::cout << "Stop "s << stop << ": no buses"s << std::endl;
+		if (transport_catalogue.FindStop(stop) != nullptr) {
+			if (transport_catalogue.FindBuses(stop).empty()) {
+				out << "Stop "s << stop << ": no buses"s << std::endl;
 			}
 			else {
-				std::cout << "Stop "s << stop << ": buses"s;
-				for (const auto& bus : tran_cat.GetStopBuses().at(stop)) {
-					std::cout << " "s << bus;
+				out << "Stop "s << stop << ": buses"s;
+				for (const auto& bus : transport_catalogue.FindBuses(stop)) {
+					out << " "s << bus;
 				}
-				std::cout << std::endl;
+				out << std::endl;
 			}
 		}
 		else {
@@ -35,34 +44,32 @@ namespace transportcatalogue::detail {
 		}
 	}
 
-	void OutputReqFunction(const TransportCatalogue& catalogue, int& counter) {
+	void OutputReqFunction(const TransportCatalogue& catalogue, std::istream& in, std::ostream& out) {
+		int counter_out = 0;
+		std::cin >> counter_out;
+		std::cin.ignore();
+
 		int t = 1;
 		std::string bus_or_stop_req;
-		while (t <= counter) {
+		while (t <= counter_out) {
 			t += 1;
 
 			std::string bus_or_stop{};
 			int type_of_req_number = 0;
-			std::getline(std::cin, bus_or_stop_req);
+			std::getline(in, bus_or_stop_req);
 
 			size_t pos_for_next = 0;
 			std::string type_of_req = StringMaker("  ", bus_or_stop_req, pos_for_next, pos_for_next);
 
 			if (type_of_req == "Bus") {
 
-				size_t name_of_bus_begin = bus_or_stop_req.find_first_not_of(' ', pos_for_next);
-				size_t name_of_bus_end = bus_or_stop_req.find_last_not_of(' ', bus_or_stop_req.npos);
-				size_t distance_name_of_bus = name_of_bus_end - name_of_bus_begin + 1;
-				bus_or_stop = bus_or_stop_req.substr(name_of_bus_begin, distance_name_of_bus);
-				OutputBus(bus_or_stop, catalogue);
+				std::string bus_or_stop = StringMakerToo(" ", bus_or_stop_req, pos_for_next);
+				OutputBus(bus_or_stop, catalogue, out);
 			}
 			else if (type_of_req == "Stop") {
 
-				size_t name_of_stop_begin = bus_or_stop_req.find_first_not_of(' ', pos_for_next);
-				size_t name_of_stop_end = bus_or_stop_req.find_last_not_of(' ', bus_or_stop_req.npos);
-				size_t distance_name_of_stop = name_of_stop_end - name_of_stop_begin + 1;
-				bus_or_stop = bus_or_stop_req.substr(name_of_stop_begin, distance_name_of_stop);
-				OutputStop(bus_or_stop, catalogue);
+				std::string bus_or_stop = StringMakerToo(" ", bus_or_stop_req, pos_for_next);
+				OutputStop(bus_or_stop, catalogue, out);
 			}
 			else {
 				throw std::invalid_argument("Wrong type of request!");

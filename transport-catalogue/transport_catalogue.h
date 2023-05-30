@@ -23,6 +23,10 @@ namespace transportcatalogue {
 			name = name_t;
 			coordinates = { latit, longit };
 		}
+		Stop(const std::string& name_t, const Coordinates& coordinates_) 
+		: name(name_t),
+		  coordinates(coordinates_) {}
+
 		std::string name;
 		Coordinates coordinates;
 		bool operator==(const Stop& other) const {
@@ -42,27 +46,42 @@ namespace transportcatalogue {
 		size_t operator () (const std::pair<Stop*, Stop*>& para) const {
 			size_t first = std::hash<const void*>{}(para.first);
 			size_t second = std::hash<const void*>{}(para.second);
-			return first * 37 + second * 37 * 37;
+			return first + second * 37;
 		}
 	};
 
-	struct StopsMakerHasher {
-		size_t operator () (const std::tuple<std::string, double, double>& stop) const {
-			const auto& [name_, lat, lng] = stop;
-			size_t name = std::hash<std::string>{}(name_);
-			size_t coord_lat = std::hash<double>{}(lat);
-			size_t coord_lng = std::hash<double>{}(lng);
-			return name * 37 + coord_lat * 37 * 37 + coord_lng * 37 * 37 * 37;
-		}
+	struct RouteInfo {
+		size_t stops_on_route = 0;
+		size_t unique_stops = 0;
+		uint32_t route_length = 0;
+		double curvature = 0;
 	};
 
 	class TransportCatalogue {
 	public:
 		TransportCatalogue() = default;
 
-		void AddStops(std::unordered_map<std::tuple<std::string, double, double>, std::unordered_map<std::string, uint32_t>, StopsMakerHasher>& stops);
+		void AddStops(const std::string& stop, const Coordinates& coordinates);
 
-		void AddRoutes(std::unordered_map<std::string, std::vector<std::string>>& routes);
+		void AddStopsDistance(const std::string& name, const std::unordered_map<std::string, uint32_t>& stops_distance);
+
+		void AddRoutes(const std::string& bus, const std::vector<std::string>& stops);
+
+		RouteInfo GetRouteInfo(std::string_view name_of_bus) const;		
+
+		const Bus* FindBus(const std::string& bus) const;
+
+		const Stop* FindStop(const std::string& stop) const;
+
+		const std::set<std::string_view>& FindBuses(const std::string& stop) const;
+
+	private:
+		std::deque<Stop> stops_{};
+		std::deque<Bus> routes_{};
+		std::unordered_map<std::string_view, Stop*> book_of_stops_{};
+		std::unordered_map<std::string_view, Bus*> book_of_routes_{};
+		std::unordered_map<std::string_view, std::set<std::string_view>> stop_buses_;
+		std::unordered_map<std::pair<Stop*, Stop*>, uint32_t, StopsDistanceHasher> stops_distance_;		
 
 		size_t GetRouteSize(std::string_view name_of_bus) const;
 
@@ -75,19 +94,5 @@ namespace transportcatalogue {
 		double ComputeGeoDistanceOfRoute(std::string_view name_of_bus) const;
 
 		double ComputeCurvature(std::string_view name_of_bus)const;
-
-		const std::unordered_map<std::string_view, Bus*>& GetBookOfRoutes() const;
-
-		const std::unordered_map<std::string_view, std::set<std::string_view>>& GetStopBuses() const;
-
-	private:
-		std::deque<Stop> stops_{};
-		std::deque<Bus> routes_{};
-		std::unordered_map<std::string_view, Stop*> book_of_stops_{};
-		std::unordered_map<std::string_view, Bus*> book_of_routes_{};
-		std::unordered_map<std::string_view, std::set<std::string_view>> stop_buses_;
-		std::unordered_map<std::pair<Stop*, Stop*>, uint32_t, StopsDistanceHasher> stops_distance_;
-
-		void AddStopsDistance(std::unordered_map<std::string_view, std::unordered_map<std::string, uint32_t>>& stops_distance);
 	};
 }

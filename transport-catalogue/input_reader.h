@@ -19,7 +19,7 @@ namespace transportcatalogue::detail {
 		double longitude = 0;
 		std::string bus{};
 		std::vector<std::string> route{};
-		int route_type = 0;
+		std::string route_type{};
 		std::unordered_map<std::string, uint32_t> distance_to;
 	};
 
@@ -27,9 +27,7 @@ namespace transportcatalogue::detail {
 
 	InputData ReadInputFunction(const std::string inner);
 
-	std::vector<InputData> DataMaker(int counter);
+	std::vector<InputData> DataMaker(int counter, std::istream& in);
 
-	std::unordered_map<std::tuple<std::string, double, double>, std::unordered_map<std::string, uint32_t>, transportcatalogue::StopsMakerHasher> StopsMaker(std::vector<InputData>& datas);
-
-	std::unordered_map<std::string, std::vector<std::string>> RoutesMaker(std::vector<InputData>& datas);
+	void AddInfoInCatalogue(TransportCatalogue& catalogue, std::istream& in);
 }

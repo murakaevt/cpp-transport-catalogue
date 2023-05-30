@@ -19,7 +19,7 @@ namespace transportcatalogue::detail {
 	}
 
 	InputData ReadInputFunction(const std::string inner) {
-		int route_type = 0;
+		std::string route_type{};
 		size_t pos_for_next = 0;
 		std::string type_of_req = StringMaker("  ", inner, pos_for_next, pos_for_next);
 
@@ -54,7 +54,7 @@ namespace transportcatalogue::detail {
 
 			auto pos = inner.find_first_not_of(' ', pos_for_next + 1);
 			if (std::count(inner.begin(), inner.end(), '-') != 0) {
-				route_type = 1;
+				route_type = "not ring route";
 				while (pos != inner.npos) {
 					auto pos_simbol = inner.find_first_of('-', pos);
 					auto pos_next = inner.find_last_not_of({ '-',' ' }, pos_simbol);
@@ -64,7 +64,7 @@ namespace transportcatalogue::detail {
 				}
 			}
 			else {
-				route_type = 2;
+				route_type = "ring route";
 				while (pos != inner.npos) {
 					auto pos_simbol = inner.find_first_of('>', pos);
 					auto pos_next = inner.find_last_not_of({ '>',' ' }, pos_simbol);
@@ -80,48 +80,49 @@ namespace transportcatalogue::detail {
 		}
 	}
 
-	std::vector<InputData> DataMaker(int counter) {
+	std::vector<InputData> DataMaker(int counter, std::istream& in) {
 		std::vector<InputData> result;
 		int t = 1;
 		std::string text;
 		while (t <= counter) {
 			t += 1;
-			std::getline(std::cin, text);
+			std::getline(in, text);
 			InputData data = ReadInputFunction(text);
 			result.push_back(data);
 		}
 		return result;
 	}
 
-	std::unordered_map<std::tuple<std::string, double, double>, std::unordered_map<std::string, uint32_t>, transportcatalogue::StopsMakerHasher> StopsMaker(std::vector<InputData>& datas) {
-		std::unordered_map<std::tuple<std::string, double, double>, std::unordered_map<std::string, uint32_t>, transportcatalogue::StopsMakerHasher> result;
+	void AddInfoInCatalogue(TransportCatalogue& catalogue, std::istream& in) {
+		int counter_add = 0;
+		std::cin >> counter_add;
+		std::cin.ignore();
+
+		std::vector<InputData> datas = DataMaker(counter_add, in);
+		
 		for (auto& data : datas) {
 			if (!data.name.empty()) {
-				result.insert({ { data.name, data.latitude, data.longitude }, data.distance_to });
-			}
+				catalogue.AddStops(data.name, {data.latitude, data.longitude});				
+			}			
 		}
-		return result;
-	}
-
-	std::unordered_map<std::string, std::vector<std::string>> RoutesMaker(std::vector<InputData>& datas) {
-		std::unordered_map<std::string, std::vector<std::string>> result;
 		for (auto& data : datas) {
-			if (data.bus.empty()) {
-				continue;
+			if (!data.name.empty() && !data.distance_to.empty()) {
+				catalogue.AddStopsDistance(data.name, data.distance_to);
 			}
-			std::vector<std::string> route_buf = data.route;
-			if (data.route_type == 1) {
-				int pos = route_buf.size() - 2;
-				while (pos >= 0) {
-					route_buf.push_back(route_buf[pos]);
-					pos -= 1;
+			else if (!data.bus.empty()) {
+				std::vector<std::string> route_buf = std::move(data.route);
+				if (data.route_type == "not ring route") {
+					int pos = route_buf.size() - 2;
+					while (pos >= 0) {
+						route_buf.push_back(route_buf[pos]);
+						pos -= 1;
+					}
+					catalogue.AddRoutes(data.bus, route_buf);
 				}
-				result.insert({ std::move(data.bus), std::move(route_buf) });
-			}
-			else if (data.route_type == 2) {
-				result.insert({ std::move(data.bus), std::move(route_buf) });
+				else if (data.route_type == "ring route") {
+					catalogue.AddRoutes(data.bus, route_buf);
+				}
 			}
 		}
-		return result;
-	}
+	}	
 }

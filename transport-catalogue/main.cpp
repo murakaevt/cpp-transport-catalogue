@@ -7,19 +7,11 @@
 using namespace std::literals;
 
 int main() {
-	transportcatalogue::TransportCatalogue tran_cat;
-	int counter_add = 0;
-	std::cin >> counter_add;
-	std::cin.ignore();
-	std::vector<transportcatalogue::detail::InputData> datas = transportcatalogue::detail::DataMaker(counter_add);
-	std::unordered_map<std::tuple<std::string, double, double>, std::unordered_map<std::string, uint32_t>, transportcatalogue::StopsMakerHasher> stops = transportcatalogue::detail::StopsMaker(datas);
-	std::unordered_map<std::string, std::vector<std::string>> routes = transportcatalogue::detail::RoutesMaker(datas);
-	tran_cat.AddStops(stops);
-	tran_cat.AddRoutes(routes);
-
-	int counter_out = 0;
-	std::cin >> counter_out;
-	std::cin.ignore();
-	transportcatalogue::detail::OutputReqFunction(tran_cat, counter_out);
-
+	//std::ifstream data_in("data_input_1986.txt");
+	//std::ifstream data_out("data_output_2000.txt");
+	transportcatalogue::TransportCatalogue transport_catalogue;
+	transportcatalogue::detail::AddInfoInCatalogue(transport_catalogue, std::cin);
+	//std::ostream out(std::cout.rdbuf());
+	transportcatalogue::detail::OutputReqFunction(transport_catalogue, std::cin, std::cout);
+	
 }
