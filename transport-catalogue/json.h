@@ -7,27 +7,28 @@
 #include <variant>
 
 namespace json {
-
     class Node;
 
     using Dict = std::map<std::string, Node>;
     using Array = std::vector<Node>;
+
+    using Value = std::variant<std::nullptr_t,
+        Array,
+        Dict,
+        bool,
+        int,
+        double,
+        std::string>;    
 
     class ParsingError : public std::runtime_error {
     public:
         using runtime_error::runtime_error;
     };
 
-    class Node {
-    public:
-
-        using Value = std::variant<std::nullptr_t,
-            Array,
-            Dict,
-            bool,
-            int,
-            double,
-            std::string>;
+    class Node : public Value {
+    public:       
+      
+        using Value::Value;
 
         Node() = default;
         Node(bool value);
@@ -54,10 +55,10 @@ namespace json {
         bool IsArray() const;
         bool IsMap() const;
 
-        const Value& GetValue() const { return value_; };
+        const Value& GetValue() const { return *this; };
 
     private:
-        Value value_;
+        
     };
 
     inline bool operator==(const Node& lhs, const Node& rhs) {

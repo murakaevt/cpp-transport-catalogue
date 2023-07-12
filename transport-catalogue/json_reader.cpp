@@ -30,7 +30,7 @@ namespace json_reader {
 		return data;
 	}
 
-	std::vector<request_handler::InputData> ParcingOfBaseRequests(const json::Array& array) {
+	std::vector<request_handler::InputData> ParsingOfBaseRequests(const json::Array& array) {
 		std::vector<request_handler::InputData> data_vector;
 		for (const auto& ar : array) {
 			data_vector.push_back(MakerInputData(ar.AsMap()));
@@ -44,16 +44,21 @@ namespace json_reader {
 		}
 		else if (node.IsArray()) {
 			if (node.AsArray().size() == 3) {
-				return svg::Rgb{ node.AsArray()[0].AsInt(), node.AsArray()[1].AsInt(), node.AsArray()[2].AsInt() };
+				return svg::Rgb{ node.AsArray()[0].AsInt(), 
+					node.AsArray()[1].AsInt(),
+					node.AsArray()[2].AsInt() };
 			}
 			else {
-				return svg::Rgba{ node.AsArray()[0].AsInt(), node.AsArray()[1].AsInt(), node.AsArray()[2].AsInt(), node.AsArray()[3].AsDouble() };
+				return svg::Rgba{ node.AsArray()[0].AsInt(), 
+					node.AsArray()[1].AsInt(),
+					node.AsArray()[2].AsInt(), 
+					node.AsArray()[3].AsDouble() };
 			}
 		}
 		return "none";
 	}
 
-	map_renderer::RenderSettings RenderSettingsParcing(const json::Dict& dict) {
+	map_renderer::RenderSettings ParsingRenderSettings (const json::Dict& dict) {
 		map_renderer::RenderSettings render_settings;
 		render_settings.width = dict.at("width").AsDouble();
 		render_settings.height = dict.at("height").AsDouble();
@@ -72,7 +77,7 @@ namespace json_reader {
 		return render_settings;
 	}
 
-	json::Array StatRequestsParcing(const json::Document& document, transportcatalogue::TransportCatalogue& catalogue, std::string& map_str) {
+	json::Array ParsingStatRequests (const json::Document& document, transportcatalogue::TransportCatalogue& catalogue, std::string& map_str) {
 		json::Array array;
 		for (const auto& value : document.GetRoot().AsMap().at("stat_requests").AsArray()) {
 			json::Dict info{};
@@ -110,7 +115,7 @@ namespace json_reader {
 		return array;
 	}
 
-	void RouteRender(std::map<std::string_view, std::pair<std::string, std::string>>& buses, transportcatalogue::TransportCatalogue& catalogue, map_renderer::RenderSettings& render_settings,
+	void RenderRoute (std::map<std::string_view, std::pair<std::string, std::string>>& buses, transportcatalogue::TransportCatalogue& catalogue, map_renderer::RenderSettings& render_settings,
 		map_renderer::SphereProjector& sphere_projector, svg::Document& objects_for_paint) {
 		int counter_for_color{ 0 };
 		for (const auto& [name, type_and_stop] : buses) {
@@ -133,7 +138,7 @@ namespace json_reader {
 		}
 	}
 
-	std::map<std::string_view, std::pair<std::string, std::string>> NamesOfBusesAndCoordinatesMaker(std::vector<request_handler::InputData>& input_data, 
+	std::map<std::string_view, std::pair<std::string, std::string>> MakerNamesOfBusesAndCoordinates (std::vector<request_handler::InputData>& input_data,
 		transportcatalogue::TransportCatalogue& catalogue, std::vector<geo::Coordinates>& coordinates) {
 		std::map<std::string_view, std::pair<std::string, std::string>> buses;
 		for (const auto& data : input_data) {
@@ -147,7 +152,7 @@ namespace json_reader {
 		return buses;
 	}
 
-	void TextBusBackgroundAndTitleMaker(svg::Text& background, svg::Text& title, map_renderer::SphereProjector& sphere_projector, 
+	void MakerTextBusBackgroundAndTitle (svg::Text& background, svg::Text& title, map_renderer::SphereProjector& sphere_projector,
 		map_renderer::RenderSettings& render_settings, std::string_view bus, geo::Coordinates coordinates, int counter_for_color) {
 		background.SetPosition(sphere_projector(coordinates));
 		background.SetOffset({ render_settings.bus_label_offset[0], render_settings.bus_label_offset[1] });
@@ -170,20 +175,20 @@ namespace json_reader {
 		title.SetFillColor(render_settings.color_palette[counter_for_color]);
 	}
 
-	void TextBusInputerInSvgDocument(transportcatalogue::TransportCatalogue& catalogue, map_renderer::SphereProjector& sphere_projector,
+	void InputerTextBusInSvgDocument (transportcatalogue::TransportCatalogue& catalogue, map_renderer::SphereProjector& sphere_projector,
 		map_renderer::RenderSettings& render_settings, std::map<std::string_view, std::pair<std::string, std::string>>& buses, svg::Document& objects_for_paint) {
 		int counter_for_color{ 0 };
 		for (const auto& [name, type_of_route_and_stop] : buses) {
 			svg::Text background;
 			svg::Text title;
 			geo::Coordinates coordinates = catalogue.FindBus(std::string(name))->route[0]->coordinates;
-			TextBusBackgroundAndTitleMaker(background, title, sphere_projector, render_settings, name, coordinates, counter_for_color);
+			MakerTextBusBackgroundAndTitle(background, title, sphere_projector, render_settings, name, coordinates, counter_for_color);
 			objects_for_paint.Add(background);
 			objects_for_paint.Add(title);
 			if (type_of_route_and_stop.first == "not ring route" && catalogue.FindBus(std::string(name))->route[0]->name !=
 				catalogue.FindStop(type_of_route_and_stop.second)->name) {
 				coordinates = catalogue.FindStop(type_of_route_and_stop.second)->coordinates;
-			TextBusBackgroundAndTitleMaker(background, title, sphere_projector, render_settings, name, coordinates, counter_for_color);
+			MakerTextBusBackgroundAndTitle(background, title, sphere_projector, render_settings, name, coordinates, counter_for_color);
 			objects_for_paint.Add(background);
 			objects_for_paint.Add(title);
 			}
@@ -196,7 +201,7 @@ namespace json_reader {
 		}		
 	}
 
-	std::vector<domain::Stop*> VectorStopsMaker(transportcatalogue::TransportCatalogue& catalogue, 
+	std::vector<domain::Stop*> MakerVectorStops (transportcatalogue::TransportCatalogue& catalogue,
 		std::map<std::string_view, std::pair<std::string, std::string>>& buses) {
 		std::vector<domain::Stop*> stops;
 		for (const auto& [name, type_of_route_and_stop] : buses) {
@@ -210,23 +215,23 @@ namespace json_reader {
 		return stops;
 	}
 
-	void CircleOfStopsMaker (svg::Circle& circle, map_renderer::SphereProjector& sphere_projector,
+	void MakerCircleOfStops (svg::Circle& circle, map_renderer::SphereProjector& sphere_projector,
 		map_renderer::RenderSettings& render_settings, domain::Stop* stop) {
 		circle.SetCenter(sphere_projector(stop->coordinates));
 		circle.SetRadius(render_settings.stop_radius);
 		circle.SetFillColor("white");
 	}
 
-	void CircleInputerInSvgDocument(map_renderer::SphereProjector& sphere_projector,
+	void InputerCircleInSvgDocument (map_renderer::SphereProjector& sphere_projector,
 		map_renderer::RenderSettings& render_settings, std::vector<domain::Stop*>& stops, svg::Document& objects_for_paint) {
 		svg::Circle circle;		
 		for (const auto& stop : stops) {
-			CircleOfStopsMaker(circle, sphere_projector, render_settings, stop);
+			MakerCircleOfStops(circle, sphere_projector, render_settings, stop);
 			objects_for_paint.Add(circle);
 		}
 	}
 
-	void TextStopBackgroundAndTitleMaker(svg::Text& background, svg::Text& title, map_renderer::SphereProjector& sphere_projector, 
+	void MakerTextStopBackgroundAndTitle (svg::Text& background, svg::Text& title, map_renderer::SphereProjector& sphere_projector,
 		map_renderer::RenderSettings& render_settings, domain::Stop* stop, geo::Coordinates& coordinates) {
 		background.SetPosition(sphere_projector(coordinates));
 		background.SetOffset({ render_settings.stop_label_offset[0], render_settings.stop_label_offset[1]});
@@ -247,44 +252,45 @@ namespace json_reader {
 		title.SetFillColor("black");
 	}
 
-	void TextStopInputerInSvgDocument(map_renderer::SphereProjector& sphere_projector,
+	void InputerTextStopInSvgDocument (map_renderer::SphereProjector& sphere_projector,
 		map_renderer::RenderSettings& render_settings, std::vector<domain::Stop*>& stops, svg::Document& objects_for_paint) {
 		svg::Text background;
 		svg::Text title;
 		geo::Coordinates coordinates;
 		for (const auto& stop : stops) {
 			coordinates = stop->coordinates;
-			TextStopBackgroundAndTitleMaker(background, title, sphere_projector, render_settings, stop, coordinates);
+			MakerTextStopBackgroundAndTitle(background, title, sphere_projector, render_settings, stop, coordinates);
 			objects_for_paint.Add(background);
 			objects_for_paint.Add(title);
 		}
 	}
 
-	void ParcingOfRequest(transportcatalogue::TransportCatalogue& catalogue, std::istream& in, std::ostream& out) {
+	void ParsingOfRequest(transportcatalogue::TransportCatalogue& catalogue, std::istream& in, std::ostream& out) {
 		json::Document document = json::Load(in);
 
 		if (!document.GetRoot().IsMap()) {
 			throw json::ParsingError("Wrong structure of json file");
 		}
-		std::vector<request_handler::InputData> input_data = ParcingOfBaseRequests(document.GetRoot().AsMap().at("base_requests").AsArray());
+		const auto& request = document.GetRoot().AsMap();
+		std::vector<request_handler::InputData> input_data = ParsingOfBaseRequests(request.at("base_requests").AsArray());
 		request_handler::AddInfoInCatalogue(catalogue, input_data);
 		
-		map_renderer::RenderSettings render_settings = RenderSettingsParcing(document.GetRoot().AsMap().at("render_settings").AsMap());		
+		map_renderer::RenderSettings render_settings = ParsingRenderSettings(request.at("render_settings").AsMap());
 		std::vector<geo::Coordinates> coordinates;
-		std::map<std::string_view, std::pair<std::string, std::string>> buses = NamesOfBusesAndCoordinatesMaker(input_data, catalogue, coordinates);
-		std::vector<domain::Stop*> stops = VectorStopsMaker(catalogue, buses);
+		std::map<std::string_view, std::pair<std::string, std::string>> buses = MakerNamesOfBusesAndCoordinates(input_data, catalogue, coordinates);
+		std::vector<domain::Stop*> stops = MakerVectorStops(catalogue, buses);
 		map_renderer::SphereProjector sphere_projector(coordinates.begin(), coordinates.end(), render_settings.width, render_settings.height, render_settings.padding);		
 		svg::Document objects_for_paint;
-		RouteRender(buses, catalogue, render_settings, sphere_projector, objects_for_paint);
-		TextBusInputerInSvgDocument(catalogue, sphere_projector, render_settings, buses, objects_for_paint);
-		CircleInputerInSvgDocument(sphere_projector, render_settings, stops, objects_for_paint);
-		TextStopInputerInSvgDocument(sphere_projector, render_settings, stops, objects_for_paint);
+		RenderRoute(buses, catalogue, render_settings, sphere_projector, objects_for_paint);
+		InputerTextBusInSvgDocument(catalogue, sphere_projector, render_settings, buses, objects_for_paint);
+		InputerCircleInSvgDocument(sphere_projector, render_settings, stops, objects_for_paint);
+		InputerTextStopInSvgDocument(sphere_projector, render_settings, stops, objects_for_paint);
 		std::ostringstream map{};
 		objects_for_paint.Render(map);
 		std::string map_str = map.str();
 		
-		if (document.GetRoot().AsMap().at("stat_requests").AsArray().size() != 0) {
-		json::Array responses_to_queries = StatRequestsParcing(document, catalogue, map_str);
+		if (request.at("stat_requests").AsArray().size() != 0) {
+		json::Array responses_to_queries = ParsingStatRequests(document, catalogue, map_str);
 		json::Document output_info{ json::Node{responses_to_queries} };
 		json::Print(output_info, out);
 	}
