@@ -77,41 +77,68 @@ namespace json_reader {
 		return render_settings;
 	}
 
-	json::Array ParsingStatRequests (const json::Document& document, transportcatalogue::TransportCatalogue& catalogue, std::string& map_str) {
-		json::Array array;
+	json::Node ParsingStatRequests(const json::Document& document, transportcatalogue::TransportCatalogue& catalogue, std::string& map_str) {
+		json::Node array;
+		json::Builder array_builder;
+		array_builder.StartArray();
+		std::string str_not_found = "not found";
 		for (const auto& value : document.GetRoot().AsMap().at("stat_requests").AsArray()) {
-			json::Dict info{};
+			json::Node dict;
+			json::Builder dict_builder;
 			const auto& val = value.AsMap();
-			info["request_id"] = json::Node{ val.at("id").AsInt() };
+			//dict["request_id"] = json::Node{ val.at("id").AsInt() };
+			dict_builder.StartDict()
+				.Key("request_id").Value(val.at("id").AsInt());
 			if (val.at("type").AsString() == "Bus") {
 				domain::RouteInfo info_of_bus = request_handler::GetInfoAboutBus(catalogue, val.at("name").AsString());
 				if (info_of_bus.stops_on_route == 0) {
-					info["error_message"] = json::Node{ static_cast<std::string>("not found") };
+					//dict["error_message"] = json::Node{ static_cast<std::string>("not found") };
+					dict_builder.Key("error_message").Value(str_not_found)
+						.EndDict();
+					dict = dict_builder.Build();
 				}
 				else {
-					info["curvature"] = json::Node{ info_of_bus.curvature };
-					info["route_length"] = json::Node{ static_cast<int>(info_of_bus.route_length) };
-					info["stop_count"] = json::Node{ static_cast<int>(info_of_bus.stops_on_route) };
-					info["unique_stop_count"] = json::Node{ static_cast<int>(info_of_bus.unique_stops) };
+					//dict["curvature"] = json::Node{ info_of_bus.curvature };
+					//dict["route_length"] = json::Node{ static_cast<int>(info_of_bus.route_length) };
+					//dict["stop_count"] = json::Node{ static_cast<int>(info_of_bus.stops_on_route) };
+					//dict["unique_stop_count"] = json::Node{ static_cast<int>(info_of_bus.unique_stops) };
+					dict_builder.Key("curvature").Value(info_of_bus.curvature)
+						.Key("route_length").Value(static_cast<int>(info_of_bus.route_length))
+						.Key("stop_count").Value(static_cast<int>(info_of_bus.stops_on_route))
+						.Key("unique_stop_count").Value(static_cast<int>(info_of_bus.unique_stops))
+						.EndDict();
+					dict = dict_builder.Build();
 				}
 			}
 			else if (val.at("type").AsString() == "Stop") {
-				json::Array buses;
+				//json::Node buses_array;
 				if (catalogue.FindStop(val.at("name").AsString()) == nullptr) {
-					info["error_message"] = json::Node{ static_cast<std::string>("not found") };
+					//dict["error_message"] = json::Node{ static_cast<std::string>("not found") };
+					dict_builder.Key("error_message").Value(str_not_found)
+						.EndDict();
+					dict = dict_builder.Build();
 				}
 				else {
+					dict_builder.Key("buses").StartArray();
 					for (const auto& bus : catalogue.FindBuses(val.at("name").AsString())) {
-						buses.push_back(json::Node{ std::string{bus} });
+						dict_builder.Value(std::string{ bus });
 					}
-					info["buses"] = json::Node{ buses };
+					//dict["buses"] = json::Node{ buses_array };
+					dict_builder.EndArray()
+						.EndDict();
+					dict = dict_builder.Build();
 				}
 			}
 			else if (val.at("type").AsString() == "Map") {
-				info["map"] = json::Node{ map_str };
+				//dict["map"] = json::Node{ map_str };
+				dict_builder.Key("map").Value(map_str)
+					.EndDict();
+				dict = dict_builder.Build();
 			}
-			array.push_back(json::Node{ info });
+			array_builder.Value(dict);
 		}
+		array_builder.EndArray();
+		array =	array_builder.Build();
 		return array;
 	}
 
@@ -290,8 +317,8 @@ namespace json_reader {
 		std::string map_str = map.str();
 		
 		if (request.at("stat_requests").AsArray().size() != 0) {
-		json::Array responses_to_queries = ParsingStatRequests(document, catalogue, map_str);
-		json::Document output_info{ json::Node{responses_to_queries} };
+		json::Node responses_to_queries = ParsingStatRequests(document, catalogue, map_str);
+		json::Document output_info{ responses_to_queries };
 		json::Print(output_info, out);
 	}
 		
