@@ -1,14 +1,19 @@
 #pragma once
 
 #include "json.h"
+#include <stack>
+#include <string>
+#include <memory>
 
-namespace json
-{
+
+
+namespace json {
 
     class KeyContext;
     class DictItemContext;
     class ArrayItemContext;
 
+    //---------Builder----------------
 
     class Builder
     {
@@ -16,74 +21,89 @@ namespace json
 
         Builder();
 
-        virtual DictItemContext StartDict();
-        virtual ArrayItemContext StartArray();
+        DictItemContext StartDict();
+        ArrayItemContext StartArray();
 
-        virtual Builder& EndDict();
-        virtual Builder& EndArray();
+        Builder& EndDict();
+        Builder& EndArray();
 
-        virtual KeyContext Key(std::string key);
+        KeyContext Key(std::string key);
         Builder& Value(Node value);
 
-        virtual Node Build();
+        Node Build();
 
     private:
 
         Node root_;
         std::vector<Node*> nodes_stack_;
     };
-
-
-    class KeyContext final : Builder
-    {
+    //------------FamContext------------------
+    class FamContext {
     public:
+        FamContext(Builder& builder);
+        DictItemContext StartDict();
+        ArrayItemContext StartArray();
 
-        KeyContext(Builder&& builder);
+        Builder& EndDict();
+        Builder& EndArray();
 
-        DictItemContext Value(Node value);
-
-        ArrayItemContext StartArray() override;
-
-        DictItemContext StartDict() override;
+        KeyContext Key(std::string key);
+        Builder& Value(Node& value);
 
     private:
 
         Builder& builder_;
     };
 
+    //------------KeyContext------------------
 
-    class DictItemContext final : Builder
+    class KeyContext : public FamContext
     {
     public:
 
-        DictItemContext(Builder&& builder);
+        KeyContext(Builder& builder);
 
-        KeyContext Key(std::string key) override;
+        KeyContext Key(const std::string& key) = delete;
 
-        Builder& EndDict() override;
+        FamContext EndDict() = delete;
+        FamContext EndArray() = delete;
 
-    private:
+        DictItemContext Value(Node& value);
 
-        Builder& builder_;
     };
 
-    class ArrayItemContext final : Builder
+    //---------------DictItemContext-------------------
+
+    class DictItemContext : public FamContext
     {
     public:
 
-        ArrayItemContext(Builder&& builder);
+        DictItemContext(Builder& builder);
 
-        ArrayItemContext& Value(Node value);
+        KeyContext Key(const std::string& key) = delete;
 
-        DictItemContext StartDict() override;
+        DictItemContext StartDict() = delete;
 
-        ArrayItemContext StartArray() override;
+        FamContext EndArray() = delete;
+        FamContext StartArray() = delete;
 
-        Builder& EndArray() override;
+        DictItemContext Value(const Node& value) = delete;
 
-    private:
-
-        Builder& builder_;
     };
 
-}
+    //-----------ArrayItemContext----------------------
+
+    class ArrayItemContext : public FamContext
+    {
+    public:
+
+        ArrayItemContext(Builder& builder);
+
+        ArrayItemContext Value(Node& value);
+
+        DictItemContext EndDict() = delete;
+
+        KeyContext Key(const std::string& key) = delete;
+    };
+
+}// namespace json

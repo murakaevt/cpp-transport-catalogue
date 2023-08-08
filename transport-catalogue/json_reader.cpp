@@ -85,36 +85,38 @@ namespace json_reader {
 		for (const auto& value : document.GetRoot().AsMap().at("stat_requests").AsArray()) {
 			json::Node dict;
 			json::Builder dict_builder;
-			const auto& val = value.AsMap();
-			//dict["request_id"] = json::Node{ val.at("id").AsInt() };
-			dict_builder.StartDict()
-				.Key("request_id").Value(val.at("id").AsInt());
+			const auto& val = value.AsMap();			
+			dict_builder.StartDict();
+			dict_builder.Key("request_id"); 
+			dict_builder.Value(val.at("id").AsInt());
 			if (val.at("type").AsString() == "Bus") {
 				domain::RouteInfo info_of_bus = request_handler::GetInfoAboutBus(catalogue, val.at("name").AsString());
-				if (info_of_bus.stops_on_route == 0) {
-					//dict["error_message"] = json::Node{ static_cast<std::string>("not found") };
-					dict_builder.Key("error_message").Value(str_not_found)
+				int route_length = static_cast<int>(info_of_bus.route_length);
+				int stops_on_route = static_cast<int>(info_of_bus.stops_on_route);
+				int unique_stops = static_cast<int>(info_of_bus.unique_stops);
+				if (info_of_bus.stops_on_route == 0) {					
+					dict_builder.Key("error_message");
+					dict_builder.Value(json::Node{ str_not_found })
 						.EndDict();
 					dict = dict_builder.Build();
 				}
 				else {
-					//dict["curvature"] = json::Node{ info_of_bus.curvature };
-					//dict["route_length"] = json::Node{ static_cast<int>(info_of_bus.route_length) };
-					//dict["stop_count"] = json::Node{ static_cast<int>(info_of_bus.stops_on_route) };
-					//dict["unique_stop_count"] = json::Node{ static_cast<int>(info_of_bus.unique_stops) };
-					dict_builder.Key("curvature").Value(info_of_bus.curvature)
-						.Key("route_length").Value(static_cast<int>(info_of_bus.route_length))
-						.Key("stop_count").Value(static_cast<int>(info_of_bus.stops_on_route))
-						.Key("unique_stop_count").Value(static_cast<int>(info_of_bus.unique_stops))
-						.EndDict();
+					dict_builder.Key("curvature");
+					dict_builder.Value(info_of_bus.curvature);
+					dict_builder.Key("route_length");
+					dict_builder.Value(static_cast<int>(info_of_bus.route_length));
+					dict_builder.Key("stop_count");
+					dict_builder.Value(static_cast<int>(info_of_bus.stops_on_route));
+					dict_builder.Key("unique_stop_count");
+					dict_builder.Value(static_cast<int>(info_of_bus.unique_stops))
+						        .EndDict();
 					dict = dict_builder.Build();
 				}
 			}
-			else if (val.at("type").AsString() == "Stop") {
-				//json::Node buses_array;
-				if (catalogue.FindStop(val.at("name").AsString()) == nullptr) {
-					//dict["error_message"] = json::Node{ static_cast<std::string>("not found") };
-					dict_builder.Key("error_message").Value(str_not_found)
+			else if (val.at("type").AsString() == "Stop") {				
+				if (catalogue.FindStop(val.at("name").AsString()) == nullptr) {					
+					dict_builder.Key("error_message");
+					dict_builder.Value(str_not_found)
 						.EndDict();
 					dict = dict_builder.Build();
 				}
@@ -122,16 +124,15 @@ namespace json_reader {
 					dict_builder.Key("buses").StartArray();
 					for (const auto& bus : catalogue.FindBuses(val.at("name").AsString())) {
 						dict_builder.Value(std::string{ bus });
-					}
-					//dict["buses"] = json::Node{ buses_array };
+					}					
 					dict_builder.EndArray()
 						.EndDict();
 					dict = dict_builder.Build();
 				}
 			}
-			else if (val.at("type").AsString() == "Map") {
-				//dict["map"] = json::Node{ map_str };
-				dict_builder.Key("map").Value(map_str)
+			else if (val.at("type").AsString() == "Map") {				
+				dict_builder.Key("map");
+				dict_builder.Value(map_str)
 					.EndDict();
 				dict = dict_builder.Build();
 			}
@@ -299,10 +300,10 @@ namespace json_reader {
 			throw json::ParsingError("Wrong structure of json file");
 		}
 		const auto& request = document.GetRoot().AsMap();
-		std::vector<request_handler::InputData> input_data = ParsingOfBaseRequests(request.at("base_requests").AsArray());
+		std::vector<request_handler::InputData> input_data = json_reader::ParsingOfBaseRequests(request.at("base_requests").AsArray());
 		request_handler::AddInfoInCatalogue(catalogue, input_data);
 		
-		map_renderer::RenderSettings render_settings = ParsingRenderSettings(request.at("render_settings").AsMap());
+		map_renderer::RenderSettings render_settings = json_reader::ParsingRenderSettings(request.at("render_settings").AsMap());
 		std::vector<geo::Coordinates> coordinates;
 		std::map<std::string_view, std::pair<std::string, std::string>> buses = MakerNamesOfBusesAndCoordinates(input_data, catalogue, coordinates);
 		std::vector<domain::Stop*> stops = MakerVectorStops(catalogue, buses);
@@ -317,10 +318,10 @@ namespace json_reader {
 		std::string map_str = map.str();
 		
 		if (request.at("stat_requests").AsArray().size() != 0) {
-		json::Node responses_to_queries = ParsingStatRequests(document, catalogue, map_str);
+		json::Node responses_to_queries = json_reader::ParsingStatRequests(document, catalogue, map_str);
 		json::Document output_info{ responses_to_queries };
 		json::Print(output_info, out);
 	}
 		
 	}
-}// json_reader
+} //json_reader

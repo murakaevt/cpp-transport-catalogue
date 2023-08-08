@@ -7,28 +7,34 @@
 using namespace std::literals;
 
 int main() {
+    
     std::ifstream data_in("input.json");
     std::ofstream data_out("output.json");
     transportcatalogue::TransportCatalogue transport_catalogue;
     json_reader::ParsingOfRequest(transport_catalogue, data_in, data_out);
+    
     /*
+    json::Builder builder;
+    builder.StartDict();
+    builder.Key("key1"s);
+    builder.Value(123);
+    builder.Key("key2"s);
+    builder.Value("value2"s);
+    builder.Key("key3"s);
+    builder.StartArray();
+    builder.Value(456);
+    builder.StartDict();
+    builder.EndDict();
+    builder.StartDict();
+    builder.Key(""s);
+    builder.Value(nullptr)
+        .EndDict();
+    builder.Value(""s)
+        .EndArray()
+        .EndDict();
     json::Print(
-       json::Document{
-            json::Builder{}
-            .StartDict()
-                .Key("key1"s).Value(123)
-                .Key("key2"s).Value("value2"s)
-                .Key("key3"s).StartArray()
-                    .Value(456)
-                    .StartDict().EndDict()
-                    .StartDict()
-                        .Key(""s)
-                        .Value(nullptr)
-                    .EndDict()
-                    .Value(""s)
-                .EndArray()
-            .EndDict()
-            .Build()
+        json::Document{
+            builder.Build()
         },
         std::cout
     );
