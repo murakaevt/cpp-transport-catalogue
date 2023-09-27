@@ -44,6 +44,18 @@ namespace transportcatalogue {
 
 		const std::set<std::string_view>& FindBuses(const std::string& stop) const;
 
+		const std::deque<domain::Bus>& AllRoutes() const;
+
+		size_t GetStopsQuantity() const;
+
+		int GetDistBetweenStops(const std::string& s1, const std::string& s2) const;
+		int GetDistBetweenStops(domain::Stop* lhs, domain::Stop* rhs) const;
+
+		const std::deque<domain::Stop>& AllStops() const;
+
+		const std::unordered_map<std::pair<domain::Stop*, domain::Stop*>, uint32_t, StopsDistanceHasher>& AllStopsDistance() const;
+		
+
 	private:
 		std::deque<domain::Stop> stops_{};
 		std::deque<domain::Bus> routes_{};
@@ -51,6 +63,7 @@ namespace transportcatalogue {
 		std::unordered_map<std::string_view, domain::Bus*> book_of_routes_{};
 		std::unordered_map<std::string_view, std::set<std::string_view>> stop_buses_;
 		std::unordered_map<std::pair<domain::Stop*, domain::Stop*>, uint32_t, StopsDistanceHasher> stops_distance_;
+		size_t vertex_count_ = 0;
 
 		size_t GetRouteSize(std::string_view name_of_bus) const;
 

@@ -13,7 +13,7 @@ namespace transportcatalogue::detail {
 
 	void OutputBus(const std::string& bus, const TransportCatalogue& transport_catalogue, std::ostream& out) {
 		if (transport_catalogue.FindBus(bus) != nullptr) {
-			RouteInfo route_info = transport_catalogue.GetRouteInfo(bus);
+			domain::RouteInfo route_info = transport_catalogue.GetRouteInfo(bus);
 			out << "Bus "s << transport_catalogue.FindBus(bus)->name << ": "s
 				<< route_info.stops_on_route << " stops on route, "s
 				<< route_info.unique_stops << " unique stops, "s

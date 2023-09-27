@@ -3,8 +3,8 @@
 using namespace std::literals;
 namespace transportcatalogue {
 
-	void TransportCatalogue::AddStops(const std::string& stop, const geo::Coordinates& coordinates) {
-		stops_.push_back({ stop, coordinates });
+	void TransportCatalogue::AddStops(const std::string& stop, const geo::Coordinates& coordinates) {		
+		stops_.push_back({ stop, coordinates, vertex_count_++ });
 		book_of_stops_.insert({ stops_[stops_.size() - 1].name, &stops_[stops_.size() - 1] });
 		stop_buses_.insert({ book_of_stops_[stop]->name, {} });
 	}
@@ -59,6 +59,53 @@ namespace transportcatalogue {
 
 	const std::set<std::string_view>& TransportCatalogue::FindBuses(const std::string& stop) const {
 		return stop_buses_.at(stop);
+	}
+
+	const std::deque<domain::Bus>& TransportCatalogue::AllRoutes() const {
+		return routes_;
+	}
+
+	size_t TransportCatalogue::GetStopsQuantity() const {
+		return stops_.size();
+	}
+
+	int TransportCatalogue::GetDistBetweenStops(const std::string& s1, const std::string& s2) const {
+		// если такие остановки вообще существуют
+		auto iter_s1 = book_of_stops_.find(s1);
+		auto iter_s2 = book_of_stops_.find(s2);
+		if (iter_s1 != book_of_stops_.end() && iter_s2 != book_of_stops_.end()) {
+			// и если есть ключ = такие две остановки
+			auto iter_dist_straight = stops_distance_.find({ iter_s1->second ,iter_s2->second });
+			if (iter_dist_straight != stops_distance_.end()) {
+				return iter_dist_straight->second;
+			}
+			// или может есть ключ где остановки в обратном порядке	
+			auto iter_dist_reverse = stops_distance_.find({ iter_s2->second ,iter_s1->second });
+			if (iter_dist_reverse != stops_distance_.end()) {
+				return iter_dist_reverse->second;;
+			}
+		}
+		return 0;
+	}
+
+	int TransportCatalogue::GetDistBetweenStops(domain::Stop* lhs, domain::Stop* rhs) const {            // попытаться вернуть константность аргументов
+		if (stops_distance_.count({ lhs, rhs })) {
+			return stops_distance_.at({ lhs, rhs });
+		}
+
+		if (stops_distance_.count({ rhs, lhs })) {
+			return stops_distance_.at({ rhs, lhs });
+		}
+		// если не задано расстояние явно то вычислим, но по идее такого не должно произойти
+		return static_cast<int>(geo::ComputeDistance(lhs->coordinates, rhs->coordinates));
+	}
+
+	const std::deque<domain::Stop>& TransportCatalogue::AllStops() const {
+		return stops_;
+	}
+
+	const std::unordered_map<std::pair<domain::Stop*, domain::Stop*>, uint32_t, StopsDistanceHasher>& TransportCatalogue::AllStopsDistance() const {
+		return stops_distance_;
 	}
 
 	size_t TransportCatalogue::GetRouteSize(std::string_view name_of_bus) const {

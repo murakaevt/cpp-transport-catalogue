@@ -30,4 +30,4 @@ namespace transportcatalogue::detail {
 	std::vector<InputData> DataMaker(int counter, std::istream& in);
 
 	void AddInfoInCatalogue(TransportCatalogue& catalogue, std::istream& in);
-}
+} // transportcatalogue::detail

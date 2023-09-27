@@ -77,41 +77,130 @@ namespace json_reader {
 		return render_settings;
 	}
 
-	json::Array ParsingStatRequests (const json::Document& document, transportcatalogue::TransportCatalogue& catalogue, std::string& map_str) {
-		json::Array array;
+	graph::RoutingSettings ParsingRoutingSettings(const json::Dict& dict) {
+		return graph::RoutingSettings(dict.at("bus_wait_time").AsInt(), dict.at("bus_velocity").AsInt());
+	}
+
+	json::Node ParsingStatRequests(const json::Document& document, transportcatalogue::TransportCatalogue& catalogue, std::string& map_str, graph::TransportRouter& transport_router) {
+		json::Node array;
+		json::Builder array_builder;
+		array_builder.StartArray();
+		std::string str_not_found = "not found";
 		for (const auto& value : document.GetRoot().AsMap().at("stat_requests").AsArray()) {
-			json::Dict info{};
-			const auto& val = value.AsMap();
-			info["request_id"] = json::Node{ val.at("id").AsInt() };
+			json::Node dict;
+			json::Builder dict_builder;
+			const auto& val = value.AsMap();			
+			dict_builder.StartDict();
+			dict_builder.Key("request_id"); 
+			dict_builder.Value(val.at("id").AsInt());
 			if (val.at("type").AsString() == "Bus") {
-				domain::RouteInfo info_of_bus = request_handler::GetInfoAboutBus(catalogue, val.at("name").AsString());
-				if (info_of_bus.stops_on_route == 0) {
-					info["error_message"] = json::Node{ static_cast<std::string>("not found") };
+				domain::RouteInfo info_of_bus = request_handler::GetInfoAboutBus(catalogue, val.at("name").AsString());				
+				if (info_of_bus.stops_on_route == 0) {					
+					dict_builder.Key("error_message");
+					dict_builder.Value(json::Node{ str_not_found })
+						.EndDict();
+					dict = dict_builder.Build();
 				}
 				else {
-					info["curvature"] = json::Node{ info_of_bus.curvature };
-					info["route_length"] = json::Node{ static_cast<int>(info_of_bus.route_length) };
-					info["stop_count"] = json::Node{ static_cast<int>(info_of_bus.stops_on_route) };
-					info["unique_stop_count"] = json::Node{ static_cast<int>(info_of_bus.unique_stops) };
+					dict_builder.Key("curvature");
+					dict_builder.Value(info_of_bus.curvature);
+					dict_builder.Key("route_length");
+					dict_builder.Value(static_cast<int>(info_of_bus.route_length));
+					dict_builder.Key("stop_count");
+					dict_builder.Value(static_cast<int>(info_of_bus.stops_on_route));
+					dict_builder.Key("unique_stop_count");
+					dict_builder.Value(static_cast<int>(info_of_bus.unique_stops))
+						        .EndDict();
+					dict = dict_builder.Build();
 				}
 			}
-			else if (val.at("type").AsString() == "Stop") {
-				json::Array buses;
-				if (catalogue.FindStop(val.at("name").AsString()) == nullptr) {
-					info["error_message"] = json::Node{ static_cast<std::string>("not found") };
+			else if (val.at("type").AsString() == "Stop") {				
+				if (catalogue.FindStop(val.at("name").AsString()) == nullptr) {					
+					dict_builder.Key("error_message");
+					dict_builder.Value(str_not_found)
+						.EndDict();
+					dict = dict_builder.Build();
 				}
 				else {
+					dict_builder.Key("buses").StartArray();
 					for (const auto& bus : catalogue.FindBuses(val.at("name").AsString())) {
-						buses.push_back(json::Node{ std::string{bus} });
-					}
-					info["buses"] = json::Node{ buses };
+						dict_builder.Value(std::string{ bus });
+					}					
+					dict_builder.EndArray()
+						.EndDict();
+					dict = dict_builder.Build();
 				}
 			}
-			else if (val.at("type").AsString() == "Map") {
-				info["map"] = json::Node{ map_str };
+			else if (val.at("type").AsString() == "Map") {				
+				dict_builder.Key("map");
+				dict_builder.Value(map_str)
+					.EndDict();
+				dict = dict_builder.Build();
 			}
-			array.push_back(json::Node{ info });
+			else if (val.at("type").AsString() == "Route") {
+
+				// если таких остановок нет в природе
+				if (catalogue.FindStop(val.at("from").AsString()) == nullptr ||
+					catalogue.FindStop(val.at("to").AsString()) == nullptr ) {
+					
+					dict_builder.Key("error_message");
+					dict_builder.Value(str_not_found).EndDict();
+					dict = dict_builder.Build();
+				}
+				else {
+					std::string stop_from = val.at("from").AsString();
+					std::string stop_to = val.at("to").AsString();
+
+					std::optional<const domain::Stop*> vertex_from = catalogue.FindStop(stop_from);
+					std::optional<const domain::Stop*> vertex_to = catalogue.FindStop(stop_to);
+
+					//проверять на существование нет смысла так как перед ветвлением проверяем существование остановок
+					const size_t id_from = vertex_from.value()->vertex_id_;
+					const size_t id_to = vertex_to.value()->vertex_id_;
+
+					std::optional<graph::CompositeRoute>route = transport_router.PerformRoute(id_from, id_to);
+
+					//если остановки такие есть но маршрут не проложен
+					if (!route) {						
+						dict_builder.Key("error_message");
+						dict_builder.Value("not found").EndDict();
+						dict = dict_builder.Build();
+					}
+
+					else {
+						double computed_length = route->total_time;
+						
+						dict_builder.Key("total_time");
+						dict_builder.Value(computed_length);
+						dict_builder.Key("items").StartArray();
+
+						for (const auto& line : route->route) {
+							dict_builder.StartDict();
+							dict_builder.Key("stop_name"s);
+							dict_builder.Value(line.stop->name);
+							dict_builder.Key("time"s);
+							dict_builder.Value(line.wait_time);
+							dict_builder.Key("type"s);
+							dict_builder.Value("Wait"s).EndDict();
+							dict_builder.StartDict();
+							dict_builder.Key("bus"s);
+							dict_builder.Value(line.bus->name);
+							dict_builder.Key("span_count"s);
+							dict_builder.Value(static_cast<int>(line.count_stops));
+							dict_builder.Key("time"s);
+							dict_builder.Value(line.run_time);
+							dict_builder.Key("type");
+							dict_builder.Value("Bus"s).EndDict();							
+						}
+						dict_builder.EndArray().EndDict();
+						dict = dict_builder.Build();
+					}
+				}			
+			}
+			array_builder.Value(dict);
 		}
+		array_builder.EndArray();
+		array =	array_builder.Build();
 		return array;
 	}
 
@@ -272,10 +361,12 @@ namespace json_reader {
 			throw json::ParsingError("Wrong structure of json file");
 		}
 		const auto& request = document.GetRoot().AsMap();
-		std::vector<request_handler::InputData> input_data = ParsingOfBaseRequests(request.at("base_requests").AsArray());
+		std::vector<request_handler::InputData> input_data = json_reader::ParsingOfBaseRequests(request.at("base_requests").AsArray());
 		request_handler::AddInfoInCatalogue(catalogue, input_data);
 		
-		map_renderer::RenderSettings render_settings = ParsingRenderSettings(request.at("render_settings").AsMap());
+		map_renderer::RenderSettings render_settings = json_reader::ParsingRenderSettings(request.at("render_settings").AsMap());
+		graph::RoutingSettings routing_settings = json_reader::ParsingRoutingSettings(request.at("routing_settings").AsMap());
+		graph::TransportRouter transport_router(routing_settings, catalogue);
 		std::vector<geo::Coordinates> coordinates;
 		std::map<std::string_view, std::pair<std::string, std::string>> buses = MakerNamesOfBusesAndCoordinates(input_data, catalogue, coordinates);
 		std::vector<domain::Stop*> stops = MakerVectorStops(catalogue, buses);
@@ -290,10 +381,10 @@ namespace json_reader {
 		std::string map_str = map.str();
 		
 		if (request.at("stat_requests").AsArray().size() != 0) {
-		json::Array responses_to_queries = ParsingStatRequests(document, catalogue, map_str);
-		json::Document output_info{ json::Node{responses_to_queries} };
+		json::Node responses_to_queries = json_reader::ParsingStatRequests(document, catalogue, map_str, transport_router);
+		json::Document output_info{ responses_to_queries };
 		json::Print(output_info, out);
 	}
 		
 	}
-}// json_reader
+} //json_reader

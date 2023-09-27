@@ -4,6 +4,9 @@
 #include "transport_catalogue.h"
 #include "request_handler.h"
 #include "map_renderer.h"
+#include "json_builder.h"
+#include "router.h"
+#include "transport_router.h"
 
 #include <sstream>
 
@@ -17,7 +20,9 @@ namespace json_reader {
 
 	map_renderer::RenderSettings ParsingRenderSettings (const json::Dict& dict);
 
-	json::Array ParsingStatRequests (const json::Document& document, transportcatalogue::TransportCatalogue& catalogue, std::string& map_str);
+	graph::RoutingSettings ParsingRoutingSettings(const json::Dict& dict);
+
+	json::Node ParsingStatRequests (const json::Document& document, transportcatalogue::TransportCatalogue& catalogue, std::string& map_str, graph::TransportRouter& transport_router);
 
 	void RenderRoute(std::map<std::string_view, std::pair<std::string, std::string>>& buses, transportcatalogue::TransportCatalogue& catalogue, map_renderer::RenderSettings& render_settings,
 		map_renderer::SphereProjector& sphere_projector, svg::Document& objects_for_paint);
