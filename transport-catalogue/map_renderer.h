@@ -1,103 +1,96 @@
 #pragma once
 
 #include "domain.h"
-#include "geo.h"
 #include "svg.h"
 
-#include <algorithm>
-#include <cstdlib>
-#include <iostream>
-#include <optional>
-#include <vector>
-#include <array>
+#include <cassert>
+#include <map>
 
-namespace map_renderer {
-    inline const double EPSILON = 1e-6;
+namespace transport_catalogue {
 
-    bool IsZero(double value);
+class TransportCatalogue;
 
-    struct RenderSettings {
-        double width{ 0.0 };
-        double height{ 0.0 };
-        double padding{ 0.0 };
-        double line_width{ 0.0 };
-        double stop_radius{ 0.0 };
-        int bus_label_font_size{ 0 };
-        std::array<double, 2> bus_label_offset{0.0, 0.0};
-        int stop_label_font_size{ 0 };
-        std::array<double, 2> stop_label_offset{ 0.0, 0.0 };
-        svg::Color underlayer_color{ };
-        double underlayer_width{0.0};
-        std::vector<svg::Color> color_palette{};
-    };
+namespace renderer {
 
-    class SphereProjector {
-    public:
-        // points_begin и points_end задают начало и конец интервала элементов geo::Coordinates
-        template <typename PointInputIt>
-        SphereProjector(PointInputIt points_begin, PointInputIt points_end,
-            double max_width, double max_height, double padding)
-            : padding_(padding) //
-        {
-            // Если точки поверхности сферы не заданы, вычислять нечего
-            if (points_begin == points_end) {
-                return;
-            }
+struct RenderSettings {
+    std::vector<svg::Color> palette;
 
-            // Находим точки с минимальной и максимальной долготой
-            const auto [left_it, right_it] = std::minmax_element(
-                points_begin, points_end,
-                [](auto lhs, auto rhs) { return lhs.lng < rhs.lng; });
-            min_lon_ = left_it->lng;
-            const double max_lon = right_it->lng;
+    double max_width = 1200;
+    double max_height = 1200;
+    double padding = 100;
 
-            // Находим точки с минимальной и максимальной широтой
-            const auto [bottom_it, top_it] = std::minmax_element(
-                points_begin, points_end,
-                [](auto lhs, auto rhs) { return lhs.lat < rhs.lat; });
-            const double min_lat = bottom_it->lat;
-            max_lat_ = top_it->lat;
+    double line_width = 4.0;
+    double stop_radius = 2;
 
-            // Вычисляем коэффициент масштабирования вдоль координаты x
-            std::optional<double> width_zoom;
-            if (!IsZero(max_lon - min_lon_)) {
-                width_zoom = (max_width - 2 * padding) / (max_lon - min_lon_);
-            }
+    svg::Color underlayer_color{std::string("white")};
+    double underlayer_width = 2;
 
-            // Вычисляем коэффициент масштабирования вдоль координаты y
-            std::optional<double> height_zoom;
-            if (!IsZero(max_lat_ - min_lat)) {
-                height_zoom = (max_height - 2 * padding) / (max_lat_ - min_lat);
-            }
+    svg::Point stop_label_offset{3, -5};
+    uint32_t stop_label_font_size = 12;
+    svg::Color stop_label_color{std::string("black")};
+    std::string stop_label_font_family{"Verdana"};
 
-            if (width_zoom && height_zoom) {
-                // Коэффициенты масштабирования по ширине и высоте ненулевые,
-                // берём минимальный из них
-                zoom_coeff_ = std::min(*width_zoom, *height_zoom);
-            }
-            else if (width_zoom) {
-                // Коэффициент масштабирования по ширине ненулевой, используем его
-                zoom_coeff_ = *width_zoom;
-            }
-            else if (height_zoom) {
-                // Коэффициент масштабирования по высоте ненулевой, используем его
-                zoom_coeff_ = *height_zoom;
-            }
+    svg::Point bus_label_offset{10, 10};
+    uint32_t bus_label_font_size = 20;
+    std::string bus_label_font_family{"Verdana"};
+};
+
+class MapRenderer : public svg::Drawable {
+public:
+    MapRenderer(RenderSettings render_settings, const TransportCatalogue& db);
+
+    void Draw(svg::ObjectContainer& container) const override;
+
+    const RenderSettings& GetRenderSettings() const {
+        return render_settings_;
+    }
+    const auto& GetStopsCoords() const {
+        return stops_coords_;
+    }
+
+private:
+    void RenderBusLines(svg::ObjectContainer& container) const;
+    void RenderBusLabels(svg::ObjectContainer& container) const;
+    void RenderStopPoints(svg::ObjectContainer& container) const;
+    void RenderStopLabels(svg::ObjectContainer& container) const;
+    const svg::Color& GetBusLineColor(size_t index) const;
+
+    MapRenderer() = default;
+    static std::vector<BusPtr> MakeBuses(const TransportCatalogue& db);
+
+    struct SortedByName {
+        bool operator()(StopPtr lhs, StopPtr rhs) const {
+            assert(lhs);
+            assert(rhs);
+            return lhs->name < rhs->name;
         }
-
-        // Проецирует широту и долготу в координаты внутри SVG-изображения
-        svg::Point operator()(geo::Coordinates coords) const {
-            return {
-                (coords.lng - min_lon_) * zoom_coeff_ + padding_,
-                (max_lat_ - coords.lat) * zoom_coeff_ + padding_
-            };
-        }
-
-    private:
-        double padding_;
-        double min_lon_ = 0;
-        double max_lat_ = 0;
-        double zoom_coeff_ = 0;
     };
+    RenderSettings render_settings_;
+    std::vector<BusPtr> buses_;
+    std::map<StopPtr, svg::Point, SortedByName> stops_coords_;
 
-} // map_renderer
+    friend class MapRendererBuilder;
+};
+
+class MapRendererBuilder {
+public:
+    MapRendererBuilder(RenderSettings render_settings, const TransportCatalogue& db) {
+        data_.render_settings_ = std::move(render_settings);
+        data_.buses_ = MapRenderer::MakeBuses(db);
+    }
+
+    void SetStopCoords(StopPtr stop_ptr, svg::Point coords) {
+        data_.stops_coords_[stop_ptr] = coords;
+    }
+
+    MapRenderer Build() && {
+        return std::move(data_);
+    }
+    
+private:
+    MapRenderer data_;
+};
+
+}  // namespace renderer
+
+}  // namespace transport_catalogue

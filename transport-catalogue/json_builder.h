@@ -1,109 +1,101 @@
 #pragma once
 
-#include "json.h"
-#include <stack>
 #include <string>
-#include <memory>
-
-
+#include <vector>
+#include "json.h"
 
 namespace json {
 
-    class KeyContext;
+class Builder {
+private:
+    class BaseContext;
+    class DictValueContext;
     class DictItemContext;
     class ArrayItemContext;
 
-    //---------Builder----------------
+public:
+    Builder();
+    Node Build();
+    DictValueContext Key(std::string key);
+    BaseContext Value(Node::Value value);
+    DictItemContext StartDict();
+    ArrayItemContext StartArray();
+    BaseContext EndDict();
+    BaseContext EndArray();
 
-    class Builder
-    {
+private:
+    Node root_;
+    std::vector<Node*> nodes_stack_;
+
+    Node::Value& GetCurrentValue();
+    const Node::Value& GetCurrentValue() const;
+    
+    void AssertNewObjectContext() const;
+    void AddObject(Node::Value value, bool one_shot);
+    
+    // Check these cases in compile time:
+    // Key() → Value(), StartDict(), StartArray()
+    // StartDict() → Key(), EndDict()
+    // Key() → Value() → Key(), EndDict()
+    // StartArray() → Value(), StartDict(), StartArray(), EndArray() 
+    // StartArray() → Value() → Value(), StartDict(), StartArray(), EndArray() 
+    
+    class BaseContext {
     public:
-
-        Builder();
-
-        DictItemContext StartDict();
-        ArrayItemContext StartArray();
-
-        Builder& EndDict();
-        Builder& EndArray();
-
-        KeyContext Key(std::string key);
-        Builder& Value(Node value);
-
-        Node Build();
-
+        BaseContext(Builder& builder) : builder_(builder) {}
+        Node Build() {
+            return builder_.Build();
+        }
+        DictValueContext Key(std::string key) {
+            return builder_.Key(std::move(key));
+        }
+        BaseContext Value(Node::Value value) {
+            return builder_.Value(std::move(value));
+        }
+        DictItemContext StartDict() {
+            return builder_.StartDict();
+        }
+        ArrayItemContext StartArray() {
+            return builder_.StartArray();
+        }
+        BaseContext EndDict() {
+            return builder_.EndDict();
+        }
+        BaseContext EndArray() {
+            return builder_.EndArray();
+        }
     private:
-
-        Node root_;
-        std::vector<Node*> nodes_stack_;
-    };
-    //------------FamContext------------------
-    class FamContext {
-    public:
-        FamContext(Builder& builder);
-        DictItemContext StartDict();
-        ArrayItemContext StartArray();
-
-        Builder& EndDict();
-        Builder& EndArray();
-
-        KeyContext Key(std::string key);
-        Builder& Value(Node& value);
-
-    private:
-
         Builder& builder_;
     };
-
-    //------------KeyContext------------------
-
-    class KeyContext : public FamContext
-    {
+    
+    class DictValueContext : public BaseContext {
     public:
-
-        KeyContext(Builder& builder);
-
-        KeyContext Key(const std::string& key) = delete;
-
-        FamContext EndDict() = delete;
-        FamContext EndArray() = delete;
-
-        DictItemContext Value(Node& value);
-
+        DictValueContext(BaseContext base) : BaseContext(base) {}
+        DictItemContext Value(Node::Value value) { return BaseContext::Value(std::move(value)); }
+        Node Build() = delete;
+        DictValueContext Key(std::string key) = delete;
+        BaseContext EndDict() = delete;
+        BaseContext EndArray() = delete;
     };
-
-    //---------------DictItemContext-------------------
-
-    class DictItemContext : public FamContext
-    {
+    
+    class DictItemContext : public BaseContext {
     public:
-
-        DictItemContext(Builder& builder);
-
-        KeyContext Key(const std::string& key) = delete;
-
+        DictItemContext(BaseContext base) : BaseContext(base) {}
+        Node Build() = delete;
+        BaseContext Value(Node::Value value) = delete;
+        BaseContext EndArray() = delete;
         DictItemContext StartDict() = delete;
-
-        FamContext EndArray() = delete;
-        FamContext StartArray() = delete;
-
-        DictItemContext Value(const Node& value) = delete;
-
+        ArrayItemContext StartArray() = delete;
     };
-
-    //-----------ArrayItemContext----------------------
-
-    class ArrayItemContext : public FamContext
-    {
+    
+    class ArrayItemContext : public BaseContext {
     public:
-
-        ArrayItemContext(Builder& builder);
-
-        ArrayItemContext Value(Node& value);
-
-        DictItemContext EndDict() = delete;
-
-        KeyContext Key(const std::string& key) = delete;
+        ArrayItemContext(BaseContext base) : BaseContext(base) {}
+        ArrayItemContext Value(Node::Value value) { return BaseContext::Value(std::move(value)); }
+        Node Build() = delete;
+        DictValueContext Key(std::string key) = delete;
+        BaseContext EndDict() = delete;
     };
+};
 
-}// namespace json
+}  // namespace json

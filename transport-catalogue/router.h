@@ -12,7 +12,10 @@
 #include <utility>
 #include <vector>
 
-namespace graph {    
+namespace graph {
+
+template <typename Weight>
+class RouterBuilder;
 
 template <typename Weight>
 class Router {
@@ -29,11 +32,16 @@ public:
 
     std::optional<RouteInfo> BuildRoute(VertexId from, VertexId to) const;
 
-private:
+    const Graph& GetGraph() const;
+
     struct RouteInternalData {
         Weight weight;
         std::optional<EdgeId> prev_edge;
     };
+
+    const RouteInternalData* GetRouteInternalData(VertexId from, VertexId to) const;
+
+private:
     using RoutesInternalData = std::vector<std::vector<std::optional<RouteInternalData>>>;
 
     void InitializeRoutesInternalData(const Graph& graph) {
@@ -75,16 +83,52 @@ private:
         }
     }
 
+    struct DummyInitializationTag {};
+    Router(DummyInitializationTag, const Graph& graph);
+
     static constexpr Weight ZERO_WEIGHT{};
     const Graph& graph_;
     RoutesInternalData routes_internal_data_;
+
+    friend class RouterBuilder<Weight>;
 };
 
+
 template <typename Weight>
-Router<Weight>::Router(const Graph& graph)
+class RouterBuilder {
+public:
+    using TheRouter = Router<Weight>;
+    using Graph = typename TheRouter::Graph;
+
+    explicit RouterBuilder(const Graph& graph)
+        : router_(typename TheRouter::DummyInitializationTag{}, graph)
+    {
+    }
+
+    void SetRouteInternalData(VertexId from, VertexId to, const typename TheRouter::RouteInternalData& data) {
+        router_.routes_internal_data_.at(from).at(to) = data;
+    }
+
+    TheRouter Build() && {
+        return std::move(router_);
+    }
+
+private:
+    TheRouter router_;
+};
+
+
+template <typename Weight>
+Router<Weight>::Router(DummyInitializationTag, const Graph& graph)
     : graph_(graph)
     , routes_internal_data_(graph.GetVertexCount(),
                             std::vector<std::optional<RouteInternalData>>(graph.GetVertexCount()))
+{
+}
+
+template <typename Weight>
+Router<Weight>::Router(const Graph& graph)
+    : Router(DummyInitializationTag{}, graph)
 {
     InitializeRoutesInternalData(graph);
 
@@ -95,9 +139,20 @@ Router<Weight>::Router(const Graph& graph)
 }
 
 template <typename Weight>
+const typename Router<Weight>::Graph& Router<Weight>::GetGraph() const {
+    return graph_;
+}
+
+template <typename Weight>
+const typename Router<Weight>::RouteInternalData* Router<Weight>::GetRouteInternalData(VertexId from, VertexId to) const {
+    const auto& route_internal_data = routes_internal_data_.at(from).at(to);
+    return route_internal_data ? &*route_internal_data : nullptr;
+}
+
+template <typename Weight>
 std::optional<typename Router<Weight>::RouteInfo> Router<Weight>::BuildRoute(VertexId from,
                                                                              VertexId to) const {
-    const auto& route_internal_data = routes_internal_data_.at(from).at(to);
+    const auto* route_internal_data = GetRouteInternalData(from, to);
     if (!route_internal_data) {
         return std::nullopt;
     }

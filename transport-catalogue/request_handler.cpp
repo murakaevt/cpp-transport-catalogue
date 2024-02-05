@@ -1,36 +1,45 @@
 #include "request_handler.h"
 
-namespace request_handler {
-	void AddInfoInCatalogue(transportcatalogue::TransportCatalogue& catalogue, const std::vector<InputData>& data_vector) {
-		if (!data_vector.empty()) {
-			for (const auto& data : data_vector) {
-				if (!data.name.empty()) {
-					catalogue.AddStops(data.name, { data.latitude, data.longitude });
-				}
-			}
-		}
-		for (auto& data : data_vector) {
-			if (!data.name.empty() && !data.distance_to.empty()) {
-				catalogue.AddStopsDistance(data.name, data.distance_to);
-			}
-			else if (!data.bus.empty()) {
-				std::vector<std::string> route_buf = data.route;
-				if (data.route_type == "not ring route") {
-					int pos = route_buf.size() - 2;
-					while (pos >= 0) {
-						route_buf.push_back(route_buf[pos]);
-						pos -= 1;
-					}
-					catalogue.AddRoutes(data.bus, route_buf);
-				}
-				else if (data.route_type == "ring route") {
-					catalogue.AddRoutes(data.bus, route_buf);
-				}
-			}
-		}
-	}
+#include "map_renderer.h"
+#include "transport_catalogue.h"
+#include "transport_router.h"
 
-	domain::RouteInfo GetInfoAboutBus(transportcatalogue::TransportCatalogue& catalogue, const std::string& name) {
-		return catalogue.GetRouteInfo(name);
-	}
-} // namespace request_handler
+namespace transport_catalogue::service {
+
+RequestHandler::RequestHandler(
+    const TransportCatalogue& db,
+    const renderer::MapRenderer& renderer,
+    const router::Router& router
+)
+    : db_(db)
+    , renderer_(renderer)
+    , router_(router) {
+}
+
+std::optional<BusStat> RequestHandler::GetBusStat(std::string_view bus_name) const {
+    const BusPtr bus = db_.FindBus(bus_name);
+    return bus ? std::make_optional(db_.GetStat(bus)) : std::nullopt;
+}
+
+const std::unordered_set<BusPtr>* RequestHandler::GetBusesByStop(std::string_view stop_name) const {
+    const StopPtr stop = db_.FindStop(stop_name);
+    return stop ? &(db_.GetBusesByStop(stop)) : nullptr;
+}
+
+svg::Document RequestHandler::RenderMap() const {
+    svg::Document doc;
+    renderer_.Draw(doc);
+    return doc;
+}
+
+std::optional<router::RouteInfo> RequestHandler::FindRoute(std::string_view stop_name_from, std::string_view stop_name_to) const {
+    const StopPtr stop_from = db_.FindStop(stop_name_from);
+    const StopPtr stop_to = db_.FindStop(stop_name_to);
+    if (stop_from && stop_to) {
+        return router_.FindRoute(stop_from, stop_to);
+    } else {
+        return std::nullopt;
+    }
+}
+
+}  // namespace transport_catalogue::service

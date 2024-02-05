@@ -7,14 +7,14 @@
 
 namespace graph {
 
-using VertexId = size_t;            // идентификационный номер вершины
-using EdgeId = size_t;              // идентификационный номер ребра
+using VertexId = size_t;
+using EdgeId = size_t;
 
 template <typename Weight>
-struct Edge {                // ребро
-    VertexId from;           // id вершины откуда
-    VertexId to;             // id вершины куда
-    Weight weight;           // вес ребра
+struct Edge {
+    VertexId from;
+    VertexId to;
+    Weight weight;
 };
 
 template <typename Weight>
@@ -27,8 +27,6 @@ public:
     DirectedWeightedGraph() = default;
     explicit DirectedWeightedGraph(size_t vertex_count);
     EdgeId AddEdge(const Edge<Weight>& edge);
-
-    void SetVertexCount(size_t vertex_count);
 
     size_t GetVertexCount() const;
     size_t GetEdgeCount() const;
@@ -43,11 +41,6 @@ private:
 template <typename Weight>
 DirectedWeightedGraph<Weight>::DirectedWeightedGraph(size_t vertex_count)
     : incidence_lists_(vertex_count) {
-}
-
-template <typename Weight>
-void DirectedWeightedGraph<Weight>::SetVertexCount(size_t vertex_count) {
-    incidence_lists_.resize(vertex_count);
 }
 
 template <typename Weight>

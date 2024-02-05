@@ -1,55 +1,44 @@
 #pragma once
-
 #include "json.h"
-#include "transport_catalogue.h"
-#include "request_handler.h"
-#include "map_renderer.h"
-#include "json_builder.h"
-#include "router.h"
-#include "transport_router.h"
 
-#include <sstream>
+#include <stdexcept>
 
-using namespace std::literals;
+namespace transport_catalogue {
+
+namespace service {
+class RequestHandler;
+}  // namespace service
+
+namespace renderer {
+struct RenderSettings;
+}  // namespace renderer
+
+namespace router {
+struct RoutingSettings;
+}  // namespace router
+
+class TransportCatalogue;
+
 namespace json_reader {
-	request_handler::InputData MakerInputData(const json::Dict& dict);
 
-	std::vector<request_handler::InputData> ParsingOfBaseRequests(const json::Array& array);
+class JsonReaderError : public std::runtime_error {
+public:
+    using runtime_error::runtime_error;
+};
 
-	svg::Color DeterminantTypeOfColor(const json::Node node);
+class InvalidRequestError : public JsonReaderError {
+public:
+    using JsonReaderError::JsonReaderError;
+};
 
-	map_renderer::RenderSettings ParsingRenderSettings (const json::Dict& dict);
+TransportCatalogue ReadTransportCatalogue(const json::Array& base_requests_json);
 
-	graph::RoutingSettings ParsingRoutingSettings(const json::Dict& dict);
+renderer::RenderSettings ReadRenderSettings(const json::Dict& render_settings_json);
 
-	json::Node ParsingStatRequests (const json::Document& document, transportcatalogue::TransportCatalogue& catalogue, std::string& map_str, graph::TransportRouter& transport_router);
+router::RoutingSettings ReadRoutingSettings(const json::Dict& routing_settings_json);
 
-	void RenderRoute(std::map<std::string_view, std::pair<std::string, std::string>>& buses, transportcatalogue::TransportCatalogue& catalogue, map_renderer::RenderSettings& render_settings,
-		map_renderer::SphereProjector& sphere_projector, svg::Document& objects_for_paint);
+json::Array HandleRequests(const json::Array& requests_json,
+                           const service::RequestHandler& handler);
 
-	std::map<std::string_view, std::pair<std::string, std::string>> MakerNamesOfBusesAndCoordinates (std::vector<request_handler::InputData>& input_data,
-		transportcatalogue::TransportCatalogue& catalogue, std::vector<geo::Coordinates>& coordinates);
-
-	void MakerTextBusBackgroundAndTitle (svg::Text& background, svg::Text& title, map_renderer::SphereProjector& sphere_projector,
-		map_renderer::RenderSettings& render_settings, std::string_view bus, geo::Coordinates coordinates, int counter_for_color);
-
-	void InputerTextBusInSvgDocument (transportcatalogue::TransportCatalogue& catalogue, map_renderer::SphereProjector& sphere_projector,
-		map_renderer::RenderSettings& render_settings, std::map<std::string_view, std::pair<std::string, std::string>>& buses, svg::Document& objects_for_paint);
-
-	std::vector<domain::Stop*> MakerVectorStops (transportcatalogue::TransportCatalogue& catalogue, std::map<std::string_view,
-		std::pair<std::string, std::string>>& buses);
-
-	void MakerCircleOfStops (svg::Circle& circle, map_renderer::SphereProjector& sphere_projector,
-		map_renderer::RenderSettings& render_settings, domain::Stop* stop);
-
-	void InputerCircleInSvgDocument (map_renderer::SphereProjector& sphere_projector,
-		map_renderer::RenderSettings& render_settings, std::vector<domain::Stop*>& stops, svg::Document& objects_for_paint);
-
-	void MakerTextStopBackgroundAndTitle (svg::Text& background, svg::Text& title, map_renderer::SphereProjector& sphere_projector,
-		map_renderer::RenderSettings& render_settings, domain::Stop* stop, geo::Coordinates& coordinates);
-
-	void InputerTextStopInSvgDocument (map_renderer::SphereProjector& sphere_projector,
-		map_renderer::RenderSettings& render_settings, std::vector<domain::Stop*>& stops, svg::Document& objects_for_paint);
-
-	void ParsingOfRequest(transportcatalogue::TransportCatalogue& catalogue, std::istream& in, std::ostream& out);
-} // json_reader
+}  // namespace json_reader
+}  // namespace transport_catalogue

@@ -1,154 +1,177 @@
 #include "transport_catalogue.h"
+#include <transport_catalogue.pb.h>
+#include <cassert>
 
-using namespace std::literals;
-namespace transportcatalogue {
+using namespace std;
 
-	void TransportCatalogue::AddStops(const std::string& stop, const geo::Coordinates& coordinates) {		
-		stops_.push_back({ stop, coordinates, vertex_count_++ });
-		book_of_stops_.insert({ stops_[stops_.size() - 1].name, &stops_[stops_.size() - 1] });
-		stop_buses_.insert({ book_of_stops_[stop]->name, {} });
-	}
+namespace transport_catalogue {
 
-	void TransportCatalogue::AddStopsDistance(const std::string& name, const std::unordered_map<std::string, uint32_t>& stops_distance) {
-		for (auto& [stop_to, dist] : stops_distance) {
-			stops_distance_[{book_of_stops_.at(name), book_of_stops_.at(stop_to)}] = dist;
-			if (stops_distance_.find({ book_of_stops_.at(stop_to), book_of_stops_.at(name) }) == stops_distance_.end()) {
-				stops_distance_[{book_of_stops_.at(stop_to), book_of_stops_.at(name)}] = dist;
-			}
-		}
-	}
+namespace {
 
-	void TransportCatalogue::AddRoutes(const std::string& bus, const std::vector<std::string>& stops) {
-		std::vector<domain::Stop*> route_buf;
-		for (auto& stop : stops) {
-			route_buf.push_back(book_of_stops_[stop]);
-		}
-		routes_.push_back({ bus, std::move(route_buf) });
-		book_of_routes_.insert({ routes_[routes_.size() - 1].name, &routes_[routes_.size() - 1] });
-		for (auto& stop : stops) {
-			stop_buses_[book_of_stops_[stop]->name].insert(book_of_routes_[bus]->name);
-		}
-	}
-
-	domain::RouteInfo TransportCatalogue::GetRouteInfo(std::string_view name_of_bus) const {
-		static domain::RouteInfo result_static{0,0,0,0};
-		if (book_of_routes_.find(name_of_bus) == book_of_routes_.end()) {
-			return result_static;
-		}
-		domain::RouteInfo result;
-		result.stops_on_route = GetRouteSize(name_of_bus);
-		result.unique_stops = GetUniqueStopsCount(name_of_bus);
-		result.route_length = ComputeRouteRealDistance(name_of_bus);
-		result.curvature = ComputeCurvature(name_of_bus);
-		return result;
-	}
-
-	const domain::Bus* TransportCatalogue::FindBus(const std::string& bus) const {
-		if (book_of_routes_.find(bus) == book_of_routes_.end()) {
-			return nullptr;
-		}
-		return book_of_routes_.at(bus);
-	}
-
-	const domain::Stop* TransportCatalogue::FindStop(const std::string& stop) const {
-		if (book_of_stops_.find(stop) == book_of_stops_.end()) {
-			return nullptr;
-		}
-		return book_of_stops_.at(stop);
-	}
-
-	const std::set<std::string_view>& TransportCatalogue::FindBuses(const std::string& stop) const {
-		return stop_buses_.at(stop);
-	}
-
-	const std::deque<domain::Bus>& TransportCatalogue::AllRoutes() const {
-		return routes_;
-	}
-
-	size_t TransportCatalogue::GetStopsQuantity() const {
-		return stops_.size();
-	}
-
-	int TransportCatalogue::GetDistBetweenStops(const std::string& s1, const std::string& s2) const {
-		// если такие остановки вообще существуют
-		auto iter_s1 = book_of_stops_.find(s1);
-		auto iter_s2 = book_of_stops_.find(s2);
-		if (iter_s1 != book_of_stops_.end() && iter_s2 != book_of_stops_.end()) {
-			// и если есть ключ = такие две остановки
-			auto iter_dist_straight = stops_distance_.find({ iter_s1->second ,iter_s2->second });
-			if (iter_dist_straight != stops_distance_.end()) {
-				return iter_dist_straight->second;
-			}
-			// или может есть ключ где остановки в обратном порядке	
-			auto iter_dist_reverse = stops_distance_.find({ iter_s2->second ,iter_s1->second });
-			if (iter_dist_reverse != stops_distance_.end()) {
-				return iter_dist_reverse->second;;
-			}
-		}
-		return 0;
-	}
-
-	int TransportCatalogue::GetDistBetweenStops(domain::Stop* lhs, domain::Stop* rhs) const {            // попытаться вернуть константность аргументов
-		if (stops_distance_.count({ lhs, rhs })) {
-			return stops_distance_.at({ lhs, rhs });
-		}
-
-		if (stops_distance_.count({ rhs, lhs })) {
-			return stops_distance_.at({ rhs, lhs });
-		}
-		// если не задано расстояние явно то вычислим, но по идее такого не должно произойти
-		return static_cast<int>(geo::ComputeDistance(lhs->coordinates, rhs->coordinates));
-	}
-
-	const std::deque<domain::Stop>& TransportCatalogue::AllStops() const {
-		return stops_;
-	}
-
-	const std::unordered_map<std::pair<domain::Stop*, domain::Stop*>, uint32_t, StopsDistanceHasher>& TransportCatalogue::AllStopsDistance() const {
-		return stops_distance_;
-	}
-
-	size_t TransportCatalogue::GetRouteSize(std::string_view name_of_bus) const {
-		return book_of_routes_.at(name_of_bus)->route.size();
-	}
-
-	size_t TransportCatalogue::GetUniqueStopsCount(std::string_view name_of_bus) const {
-		std::unordered_set<domain::Stop*> uniq;
-		for (const auto& r : book_of_routes_.at(name_of_bus)->route) {
-			uniq.insert(r);
-		}
-		return uniq.size();
-	}
-
-	uint32_t TransportCatalogue::GetStopsRealDistance(std::string_view from, std::string_view to) const {
-		if (stops_distance_.find({ book_of_stops_.at(from), book_of_stops_.at(to) }) == stops_distance_.end()) {
-			return 0;
-		}
-		return stops_distance_.at({ book_of_stops_.at(from), book_of_stops_.at(to) });
-	}
-
-	uint32_t TransportCatalogue::ComputeRouteRealDistance(std::string_view name_of_bus) const {
-		uint32_t real_distance = 0;
-		for (int i = 0, j = 1; j < static_cast<int>(book_of_routes_.at(name_of_bus)->route.size()); i++, j++) {
-			std::string_view from = book_of_routes_.at(name_of_bus)->route[i]->name;
-			std::string_view to = book_of_routes_.at(name_of_bus)->route[j]->name;
-			real_distance += GetStopsRealDistance(from, to);
-		}
-		return real_distance;
-	}
-
-	double TransportCatalogue::ComputeGeoDistanceOfRoute(std::string_view name_of_bus) const {
-		double route_distance = 0;
-		for (int i = 0, j = 1; j < static_cast<int>(book_of_routes_.at(name_of_bus)->route.size()); i++, j++) {
-			double route_distance_buf = ComputeDistance(
-				book_of_routes_.at(name_of_bus)->route[i]->coordinates,
-				book_of_routes_.at(name_of_bus)->route[j]->coordinates);
-			route_distance += route_distance_buf;
-		}
-		return route_distance;
-	}
-
-	double TransportCatalogue::ComputeCurvature(std::string_view name_of_bus) const {
-		return static_cast<double>(ComputeRouteRealDistance(name_of_bus)) / ComputeGeoDistanceOfRoute(name_of_bus);
-	}
+std::vector<StopPtr> CreateEndpoints(const std::vector<std::string>& stop_names,
+                                     const TransportCatalogue& catalogue) {
+    std::vector<StopPtr> endpoints;
+    if (stop_names.empty()) {
+        return endpoints;
+    }
+    endpoints.reserve(2);
+    if (const StopPtr endpoint1 = catalogue.FindStop(stop_names.front())) {
+        endpoints.push_back(endpoint1);
+        if (stop_names.front() == stop_names.back()) {
+            return endpoints;
+        }
+        if (const StopPtr endpoint2 = catalogue.FindStop(stop_names.back())) {
+            endpoints.push_back(endpoint2);
+            return endpoints;
+        }
+    }
+    throw BuildError("Failed to build endpoints"s);
 }
+
+std::vector<StopPtr> CreateBusStops(const std::vector<std::string>& stop_names, bool is_roundtrip,
+                                    const TransportCatalogue& catalogue) {
+    std::vector<StopPtr> bus_stops;
+
+    if (is_roundtrip) {
+        bus_stops.reserve(stop_names.size());
+    } else if (!stop_names.empty()) {
+        bus_stops.reserve(stop_names.size() * 2 - 1);  // end-stop is not repeated
+    }
+
+    for (const std::string& stop_name : stop_names) {
+        if (const StopPtr& stop = catalogue.FindStop(stop_name)) {
+            bus_stops.push_back(stop);
+        } else {
+            throw BuildError("Stop '"s + stop_name + "' not_found"s);
+        }
+    }
+
+    if (is_roundtrip || stop_names.size() <= 1) {
+        return bus_stops;
+    }
+    bus_stops.insert(bus_stops.end(), std::next(bus_stops.rbegin()), bus_stops.rend());
+
+    return bus_stops;
+}
+
+template <typename Map>
+auto GetValueOr(const Map& map, const typename Map::key_type& key,
+                const typename Map::mapped_type& default_value) {
+    const auto it = map.find(key);
+    return (it != map.end()) ? it->second : default_value;
+}
+
+}  // namespace
+
+BusStat TransportCatalogue::GetStat(BusPtr bus) const {
+    BusStat stat;
+
+    unordered_set<StopPtr> seen_stops;
+    StopPtr prev_stop = nullptr;
+
+    for (auto stop : bus->stops) {
+        ++stat.total_stops;
+
+        if (seen_stops.count(stop) == 0) {
+            ++stat.unique_stops;
+            seen_stops.insert(stop);
+        }
+
+        if (prev_stop != nullptr) {
+            stat.route_length_direct += geo::ComputeDistance(prev_stop->position, stop->position);
+            stat.route_length += GetDistance(prev_stop, stop);
+        }
+
+        prev_stop = stop;
+    }
+
+    return stat;
+}
+
+StopPtr TransportCatalogue::FindStop(std::string_view stop_name) const {
+    return GetValueOr(stop_by_name_, stop_name, nullptr);
+}
+
+BusPtr TransportCatalogue::FindBus(std::string_view bus_name) const {
+    return GetValueOr(bus_by_name_, bus_name, nullptr);
+}
+
+void TransportCatalogue::AddStop(std::string name, geo::Coordinates pos) {
+    stop_pool_.emplace_back(std::move(name), pos);
+    auto added_ptr = &stop_pool_.back();
+    stop_by_name_[added_ptr->name] = added_ptr;
+}
+
+void TransportCatalogue::AddBus(std::string name, std::vector<StopPtr> stops,
+                                std::vector<StopPtr> endpoints) {
+    bus_pool_.emplace_back(std::move(name), std::move(stops), std::move(endpoints));
+    auto added_ptr = &bus_pool_.back();
+    bus_by_name_[added_ptr->name] = added_ptr;
+
+    for (auto stop : added_ptr->stops) {
+        bus_by_stop_[stop].insert(added_ptr);
+    }
+}
+
+const std::unordered_set<BusPtr>& TransportCatalogue::GetBusesByStop(StopPtr stop) const {
+    static const std::unordered_set<BusPtr> dummy;
+
+    auto iter = bus_by_stop_.find(stop);
+
+    return iter == bus_by_stop_.end() ? dummy : iter->second;
+}
+
+void TransportCatalogue::SetDistance(StopPtr from, StopPtr to, int meters) {
+    distances_[{from, to}] = meters;
+}
+
+int TransportCatalogue::GetDistance(StopPtr from, StopPtr to) const {
+    auto iter = distances_.find({from, to});
+    if (iter == distances_.end()) {
+        iter = distances_.find({to, from});
+
+        if (iter == distances_.end()) {
+            return -1;
+        }
+    }
+
+    return iter->second;
+}
+
+TransportCatalogueBuilder& TransportCatalogueBuilder::AddBus(BusDesc bus_desc) {
+    bus_descriptions_.emplace_back(std::move(bus_desc));
+    return *this;
+}
+
+TransportCatalogueBuilder& TransportCatalogueBuilder::AddStop(StopDesc stop_desc) {
+    stop_descriptions_.emplace_back(std::move(stop_desc));
+    return *this;
+}
+
+TransportCatalogue TransportCatalogueBuilder::Build() const {
+    TransportCatalogue db;
+    for (const StopDesc& stop_desc : stop_descriptions_) {
+        db.AddStop(stop_desc.name, {stop_desc.latitude, stop_desc.longitude});
+    }
+
+    for (const StopDesc& stop_desc : stop_descriptions_) {
+        const StopPtr this_stop = db.FindStop(stop_desc.name);
+        assert(this_stop != nullptr);
+
+        for (const auto& [stop_name, distance] : stop_desc.road_distances) {
+            if (const StopPtr neighbor = db.FindStop(stop_name)) {
+                db.SetDistance(this_stop, neighbor, distance);
+            } else {
+                throw BuildError("Stop '"s + stop_name + "' not found"s);
+            }
+        }
+    }
+    for (const BusDesc& bus_desc : bus_descriptions_) {
+        db.AddBus(bus_desc.name, CreateBusStops(bus_desc.stop_names, bus_desc.is_roundtrip, db),
+                  CreateEndpoints(bus_desc.stop_names, db));
+    }
+
+    return db;
+}
+
+}  // namespace transport_catalogue
